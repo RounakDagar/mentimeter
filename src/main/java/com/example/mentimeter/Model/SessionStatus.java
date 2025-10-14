@@ -1,4 +1,5 @@
 package com.example.mentimeter.Model;
 
-public class SessionStatus {
+public enum SessionStatus {
+    WAITING,ACTIVE,ENDED
 }
