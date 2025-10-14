@@ -1,4 +1,5 @@
 package com.example.mentimeter.Model;
 
-public class quiz {
+public class Quiz {
+
 }
