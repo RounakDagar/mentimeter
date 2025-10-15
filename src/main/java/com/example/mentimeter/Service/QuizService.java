@@ -14,10 +14,6 @@ public class QuizService {
 
     private final QuizRepo quizRepo;
 
-//    @Autowired
-//    public QuizService(QuizRepo quizRepo) {
-//        this.quizRepo = quizRepo;
-//    }
 
 
     public Quiz createQuiz(Quiz quiz){

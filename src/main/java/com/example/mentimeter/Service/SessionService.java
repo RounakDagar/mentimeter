@@ -1,9 +1,8 @@
 package com.example.mentimeter.Service;
 
+import com.example.mentimeter.DTO.QuestionDTO;
 import com.example.mentimeter.DTO.SessionResponse;
-import com.example.mentimeter.Model.Quiz;
-import com.example.mentimeter.Model.Session;
-import com.example.mentimeter.Model.SessionStatus;
+import com.example.mentimeter.Model.*;
 import com.example.mentimeter.Repository.QuizRepo;
 import com.example.mentimeter.Repository.SessionRepo;
 import com.example.mentimeter.Util.JoinCodeGenerator;
@@ -12,9 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 
 
 @Service
@@ -37,7 +34,7 @@ public class SessionService {
         newSession.setStatus(SessionStatus.WAITING);
         newSession.setCurrentQuestionIndex(-1);
         newSession.setParticipants(new HashSet<>());
-        newSession.setResults(new HashMap<>());
+        newSession.setSubmittedAnswer(new ArrayList<>());
 
         sessionRepository.save(newSession);
         SessionResponse sessionResponse = new SessionResponse(newSession.getJoinCode());
@@ -78,22 +75,47 @@ public class SessionService {
         return sessionRepository.save(session);
     }
 
-    public void recordAnswer(String joinCode, int answerIndex) {
+    public Optional<QuestionDTO> getCurrentQuestionForSession(String joinCode) {
+        Session session = findSessionByJoinCode(joinCode);
+
+
+        if (session.getStatus() != SessionStatus.ACTIVE || session.getCurrentQuestionIndex() < 0) {
+            return Optional.empty();
+        }
+
+        Quiz quiz = quizRepository.findById(session.getQuizId())
+                .orElseThrow(() -> new IllegalStateException("Associated quiz not found for session."));
+
+        int currentIndex = session.getCurrentQuestionIndex();
+        if (currentIndex >= quiz.getQuestionList().size()) {
+            return Optional.empty(); // No more questions
+        }
+
+        Question currentQuestion = quiz.getQuestionList().get(currentIndex);
+
+        // Map the Question entity to a QuestionDTO
+        QuestionDTO questionDTO = new QuestionDTO(
+                currentQuestion.getText(),
+                currentQuestion.getOptions()
+        );
+
+        return Optional.of(questionDTO);
+    }
+
+    public void recordAnswer(String joinCode,String username, int answerIndex) {
         Session session = findSessionByJoinCode(joinCode);
 
         if (session.getStatus() != SessionStatus.ACTIVE) {
             // Optionally, you can throw an exception or just ignore the answer
+            System.out.println("Session is not active");
             return;
         }
 
         int currentQuestionIndex = session.getCurrentQuestionIndex();
 
-        // Get the results map for the current question, or create it if it's the first vote
-        Map<Integer, Integer> questionResults = session.getResults()
-                .computeIfAbsent(currentQuestionIndex, k -> new HashMap<>());
+        ParticipantAnswer participantAnswer = new ParticipantAnswer(currentQuestionIndex,answerIndex,username);
 
-        // Increment the vote count for the chosen answer index
-        questionResults.merge(answerIndex, 1, Integer::sum);
+        session.getSubmittedAnswer().add(participantAnswer);
 
         sessionRepository.save(session);
     }

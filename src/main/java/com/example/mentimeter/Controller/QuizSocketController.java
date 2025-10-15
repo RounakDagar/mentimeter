@@ -1,9 +1,8 @@
 package com.example.mentimeter.Controller;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.example.mentimeter.Model.Session;
+import com.example.mentimeter.Service.SessionService;
+import lombok.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -12,16 +11,22 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.Map;
 
-@Controller // (1) Why? Not @RestController
+@Controller
+
 public class QuizSocketController {
 
-    private final SimpMessagingTemplate messagingTemplate; // (2) Why?
+    private final SimpMessagingTemplate messagingTemplate;
+    private final SessionService sessionService;
 
     @Autowired
-    public QuizSocketController(SimpMessagingTemplate messagingTemplate) {
+    public QuizSocketController(SimpMessagingTemplate messagingTemplate, SessionService sessionService) {
         this.messagingTemplate = messagingTemplate;
+        this.sessionService = sessionService;
     }
+
+
 
     // A DTO for the answer payload
     @Getter
@@ -31,22 +36,20 @@ public class QuizSocketController {
     public static class AnswerPayload {
         private int questionIndex;
         private int optionIndex;
-        // getters and setters
+
     }
 
-    /**
-     * Handles a new participant joining a session.
-     * The message is sent to "/app/session/{joinCode}/join".
-     * Broadcasts the updated participant list to "/topic/session/{joinCode}/participants".
-     */
+
     @MessageMapping("/session/{joinCode}/join") // (3) How?
     public void handleJoin(@DestinationVariable String joinCode, @Payload String participantName) { // (4) How?
-        // TODO: Add logic to register the participant in the SessionService
+
+        Session session = sessionService.addParticipant(joinCode, participantName);
+
         System.out.println("Participant '" + participantName + "' joined session " + joinCode);
 
-        // Broadcast the updated list of participants to everyone in the session
         String destination = "/topic/session/" + joinCode + "/participants";
-        // messagingTemplate.convertAndSend(destination, /* updated participant list */);
+
+        messagingTemplate.convertAndSend(destination,session.getParticipants());
     }
 
     /**
@@ -55,12 +58,14 @@ public class QuizSocketController {
      */
     @MessageMapping("/session/{joinCode}/start")
     public void handleStart(@DestinationVariable String joinCode) {
-        // TODO: Logic to get the first question from the service
+
+
+        Session session = sessionService.startSession(joinCode);
         System.out.println("Host started session " + joinCode);
 
-        // Broadcast the first question to all participants
+
         String destination = "/topic/session/" + joinCode + "/question";
-        // messagingTemplate.convertAndSend(destination, /* first question object */);
+         messagingTemplate.convertAndSend(destination, sessionService.getCurrentQuestionForSession(joinCode) );
     }
 
     /**
@@ -68,26 +73,25 @@ public class QuizSocketController {
      */
     @MessageMapping("/session/{joinCode}/next")
     public void handleNext(@DestinationVariable String joinCode) {
-        // TODO: Logic to get the next question
+
+        Session session = sessionService.advanceToNextQuestion(joinCode);
         System.out.println("Host requested next question for session " + joinCode);
         String destination = "/topic/session/" + joinCode + "/question";
-        // messagingTemplate.convertAndSend(destination, /* next question object */);
+        messagingTemplate.convertAndSend(destination, sessionService.getCurrentQuestionForSession(joinCode));
     }
 
     /**
      * Handles a participant submitting an answer for the current question.
      */
     @MessageMapping("/session/{joinCode}/answer")
-    public void handleAnswer(@DestinationVariable String joinCode, @Payload AnswerPayload answer, Principal principal) { // (5) How?
-        String userId = principal.getName(); // Unique identifier for the connected user
-        // TODO: Logic to process the answer using the service layer
-        System.out.println("User '" + userId + "' in session " + joinCode + " answered.");
+    public void handleAnswer(@DestinationVariable String joinCode, @Payload AnswerPayload answer, Principal principal) {
+        String participantIdentifier = (principal != null) ? principal.getName() : "anonymousUser"; // Temporary fallback
 
-        // Optionally, send a confirmation back to the user who answered
-        // messagingTemplate.convertAndSendToUser(userId, "/queue/reply", "Answer received!");
+//        ("Participant '{}' in session {} answered with option {}", participantIdentifier, joinCode, answer.getOptionIndex());
+        sessionService.recordAnswer(joinCode, participantIdentifier, answer.getOptionIndex());
 
-        // Broadcast updated live results to the host
-        // String hostDestination = "/topic/session/" + joinCode + "/results";
-        // messagingTemplate.convertAndSend(hostDestination, /* live results data */);
+        String hostDestination = "/topic/session/" + joinCode + "/host";
+        messagingTemplate.convertAndSend(hostDestination, Map.of("eventType", "USER_ANSWERED", "name", participantIdentifier));
+
     }
 }

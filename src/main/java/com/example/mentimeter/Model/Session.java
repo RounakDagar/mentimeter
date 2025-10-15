@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -20,5 +21,5 @@ public class Session {
     private SessionStatus status;
     private int currentQuestionIndex;
     private Set<String> participants;
-    private Map<Integer, Map<Integer, Integer>> results;
+    private List<ParticipantAnswer> submittedAnswer;
 }
