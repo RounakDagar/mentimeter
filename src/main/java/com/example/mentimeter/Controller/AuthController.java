@@ -5,10 +5,7 @@ import com.example.mentimeter.Service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 
 
@@ -36,5 +33,10 @@ public class AuthController {
 
         return ResponseEntity.ok(token);
 
+    }
+
+    @GetMapping("/usernameTaken")
+    public Boolean verifyUsername(@RequestBody String username){
+        return authService.usernameTaken(username);
     }
 }

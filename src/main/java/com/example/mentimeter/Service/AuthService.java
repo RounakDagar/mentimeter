@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import javax.swing.text.StyledEditorKit;
 import java.net.PasswordAuthentication;
 import java.util.Optional;
 
@@ -19,14 +20,32 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    public String registerUser(User user){
+    public String registerUser(User user) {
+
+
+        if (userRepo.findByUsername(user.getUsername()).isPresent()) {
+            throw new RuntimeException("Error: Username is already taken!");
+        }
+
+        if (userRepo.findByEmail(user.getEmail()).isPresent()) {
+            throw new RuntimeException("Error: Email is already in use!");
+        }
 
         String newPassword = passwordEncoder.encode(user.getPassword());
         user.setPassword(newPassword);
-        user.setProvider(AuthProvider.LOCAL);
+
+
         userRepo.save(user);
 
         return jwtService.generateToken(user.getUsername());
+    }
+
+    public Boolean usernameTaken(String username){
+        User newUser = userRepo.findByUsername(username).orElse(null);
+
+        if(newUser!=null) return true;
+
+        return false;
     }
 
     public String verifyUser(User user){
