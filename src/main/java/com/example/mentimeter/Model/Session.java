@@ -18,8 +18,9 @@ public class Session {
     private String id;
     private String quizId;
     private String joinCode;
+    private String hostUsername;
     private SessionStatus status;
     private int currentQuestionIndex;
     private Set<String> participants;
-    private List<ParticipantAnswer> submittedAnswer;
+    private Map<String,Map<Integer,Integer>> response;
 }

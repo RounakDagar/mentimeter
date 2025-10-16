@@ -1,11 +1,17 @@
 package com.example.mentimeter.Controller;
 
+import com.example.mentimeter.Model.QuestionAnalytics;
+import com.example.mentimeter.Model.Session;
+import com.example.mentimeter.Model.SessionStatus;
 import com.example.mentimeter.Service.SessionService;
 import com.example.mentimeter.DTO.CreateSessionRequest;
 import com.example.mentimeter.DTO.SessionResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 
 @RestController
@@ -31,8 +37,32 @@ public class SessionController {
      * (Placeholder for future implementation)
      */
     @GetMapping("/{joinCode}/analytics")
-    public ResponseEntity<String> getSessionAnalytics(@PathVariable String joinCode) {
+    public ResponseEntity<List<QuestionAnalytics>> getSessionAnalytics(@PathVariable String joinCode) {
         // TODO: Implement logic to fetch and calculate final results.
-        return ResponseEntity.ok("Analytics for session " + joinCode + " are not yet available.");
+
+
+        return ResponseEntity.ok(sessionService.getAnalysis(joinCode));
+    }
+
+    @PutMapping("/{joinCode}/pause")
+    public ResponseEntity<Map<String, String>> pauseSession(@PathVariable String joinCode) {
+
+        sessionService.pauseSession(joinCode);
+        Map<String, String> response = Map.of("message", "Session " + joinCode + " has been paused.");
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PutMapping("/{joinCode}/resume")
+    public ResponseEntity<Map<String, String>> resumeSession(@PathVariable String joinCode) {
+        sessionService.resumeSession(joinCode);
+        return ResponseEntity.ok(Map.of("message", "Session " + joinCode + " has been resumed."));
+    }
+
+    @PutMapping("/{joinCode}/end")
+    public ResponseEntity<Map<String, String>> endSession(@PathVariable String joinCode) {
+        sessionService.endSession(joinCode);
+        return ResponseEntity.ok(Map.of("message", "Session " + joinCode + " has been ended."));
     }
 }

@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 3. Allow anyone to access the registration and login endpoints
                         .requestMatchers("/auth/**").permitAll()
-
+                        .requestMatchers("/ws/**").permitAll()
                         // 4. Require authentication for any other request
                         .anyRequest().authenticated()
                 )
