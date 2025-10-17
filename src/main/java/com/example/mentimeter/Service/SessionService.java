@@ -208,7 +208,7 @@ public class SessionService {
             attempt.setUserId(username);
             attempt.setQuizId(quiz.getId());
             attempt.setQuizTitle(quiz.getTitle());
-            attempt.setSessionId(session.getId());
+            attempt.setSessionId(session.getJoinCode());
             attempt.setScore(score);
             attempt.setTotalQuestions(quiz.getQuestionList().size());
             attempt.setAttemptedAt(LocalDateTime.now());

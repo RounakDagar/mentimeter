@@ -43,6 +43,7 @@ public class QuizController {
         return quizService.getAttemptedQuiz(username);
     }
 
+
     /**
      * [Phase 4] Endpoint to generate a quiz from an AI prompt.
      * (Placeholder for future implementation)
