@@ -36,12 +36,12 @@ public class SessionController {
      * [Phase 4] Fetches the final, aggregated results for a completed quiz session.
      * (Placeholder for future implementation)
      */
-    @GetMapping("/{joinCode}/analytics")
-    public ResponseEntity<List<QuestionAnalytics>> getSessionAnalytics(@PathVariable String joinCode) {
+    @GetMapping("/{joinCode}/{username}/analytics")
+    public ResponseEntity<List<QuestionAnalytics>> getSessionAnalytics(@PathVariable String joinCode,@PathVariable String username) {
         // TODO: Implement logic to fetch and calculate final results.
 
 
-        return ResponseEntity.ok(sessionService.getAnalysis(joinCode));
+        return ResponseEntity.ok(sessionService.getAnalysis(joinCode,username));
     }
 
     @PutMapping("/{joinCode}/pause")

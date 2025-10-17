@@ -3,6 +3,7 @@ package com.example.mentimeter.Service;
 import com.example.mentimeter.DTO.QuestionDTO;
 import com.example.mentimeter.DTO.SessionResponse;
 import com.example.mentimeter.Model.*;
+import com.example.mentimeter.Repository.QuizAttemptRepo;
 import com.example.mentimeter.Repository.QuizRepo;
 import com.example.mentimeter.Repository.SessionRepo;
 import com.example.mentimeter.Util.JoinCodeGenerator;
@@ -13,7 +14,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -23,13 +26,19 @@ public class SessionService {
     private final SessionRepo sessionRepository;
     private final QuizRepo quizRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final QuizAttemptRepo quizAttemptRepo;
 
     public SessionResponse createSession(String quizId) {
-        // Ensure the quiz exists before creating a session for it
         if (!quizRepository.existsById(quizId)) {
             throw new IllegalStateException("Cannot create session for a non-existent quiz with ID: " + quizId);
         }
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        // DEFENSIVE FIX: Check if user is authenticated before creating a session
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            throw new IllegalStateException("User must be authenticated to create a session.");
+        }
+        String currentUsername = authentication.getName();
+
         Session newSession = new Session();
         newSession.setQuizId(quizId);
         newSession.setHostUsername(currentUsername);
@@ -37,20 +46,16 @@ public class SessionService {
         newSession.setStatus(SessionStatus.WAITING);
         newSession.setCurrentQuestionIndex(-1);
         newSession.setParticipants(new HashSet<>());
-        newSession.setResponse(new HashMap<>());
-
+        newSession.setResponse(new HashMap<>()); // Renamed to 'response' as per your model
         sessionRepository.save(newSession);
-        SessionResponse sessionResponse = new SessionResponse(newSession.getJoinCode());
-        return sessionResponse;
+        return new SessionResponse(newSession.getJoinCode());
     }
 
     public Session addParticipant(String joinCode, String participantName) {
         Session session = findSessionByJoinCode(joinCode);
-
         if (session.getStatus() != SessionStatus.WAITING) {
             throw new IllegalStateException("Cannot join a session that is not in the WAITING state.");
         }
-
         session.getParticipants().add(participantName);
         return sessionRepository.save(session);
     }
@@ -58,25 +63,28 @@ public class SessionService {
     public Session startSession(String joinCode) {
         Session session = findSessionByJoinCode(joinCode);
         session.setStatus(SessionStatus.ACTIVE);
-        session.setCurrentQuestionIndex(0); // Set to the first question
+        session.setCurrentQuestionIndex(0);
         return sessionRepository.save(session);
     }
 
-    public Session advanceToNextQuestion(String joinCode) {
+    public void advanceToNextQuestion(String joinCode) {
         Session session = findSessionByJoinCode(joinCode);
+        if (session.getStatus() == SessionStatus.ENDED) {
+            return;
+        }
         Quiz quiz = quizRepository.findById(session.getQuizId())
                 .orElseThrow(() -> new IllegalStateException("Associated quiz not found for session."));
-
         int nextIndex = session.getCurrentQuestionIndex() + 1;
+
         if (nextIndex >= quiz.getQuestionList().size()) {
-            // If there are no more questions, end the session
-            session.setStatus(SessionStatus.ENDED);
+            endSession(joinCode);
         } else {
             session.setCurrentQuestionIndex(nextIndex);
+            sessionRepository.save(session);
         }
-
-        return sessionRepository.save(session);
     }
+
+
 
     public Optional<QuestionDTO> getCurrentQuestionForSession(String joinCode) {
         Session session = findSessionByJoinCode(joinCode);
@@ -105,7 +113,7 @@ public class SessionService {
         return Optional.of(questionDTO);
     }
 
-    // Inside your SessionService.java
+
 
     public void recordAnswer(String joinCode, String username, int answerIndex) {
         Session session = sessionRepository.findByJoinCode(joinCode)
@@ -160,8 +168,6 @@ public class SessionService {
 
         sessionRepository.save(session);
 
-        sessionRepository.save(session);
-
         String destination = "/topic/session/" + joinCode;
         messagingTemplate.convertAndSend(destination, Map.of(
                 "eventType", "STATUS_UPDATE",
@@ -169,24 +175,53 @@ public class SessionService {
         ));
     }
 
-    public void endSession(String joinCode){
-        Session session = sessionRepository.findByJoinCode(joinCode)
-                .orElseThrow(() -> new IllegalStateException("Session with join code '" + joinCode + "' not found."));
-
+    public void endSession(String joinCode) {
+        Session session = findSessionByJoinCode(joinCode);
+        if (session.getStatus() == SessionStatus.ENDED) {
+            return;
+        }
         session.setStatus(SessionStatus.ENDED);
-
         sessionRepository.save(session);
 
-        String destination = "/topic/session/" + joinCode;
-        messagingTemplate.convertAndSend(destination, Map.of(
-                "eventType", "STATUS_UPDATE",
-                "status", SessionStatus.ENDED
-        ));
+        Quiz quiz = quizRepository.findById(session.getQuizId())
+                .orElseThrow(() -> new IllegalStateException("Quiz not found for session " + joinCode));
+
+        Set<String> allUsersToProcess = new HashSet<>(session.getParticipants());
+        allUsersToProcess.add(session.getHostUsername());
+
+        for (String username : allUsersToProcess) {
+            Map<Integer, Integer> userAnswersMap = session.getResponse().getOrDefault(username, Collections.emptyMap());
+            List<ParticipantAnswer> userAnswersList = userAnswersMap.entrySet().stream()
+                    .map(entry -> new ParticipantAnswer(entry.getKey(), entry.getValue(), username))
+                    .collect(Collectors.toList());
+            int score = 0;
+            for (ParticipantAnswer answer : userAnswersList) {
+                // Defensive check to prevent crash if question doesn't exist
+                if (answer.getQuestionIndex() < quiz.getQuestionList().size()) {
+                    int correctIndex = quiz.getQuestionList().get(answer.getQuestionIndex()).getCorrectAnswerIndex();
+                    if (answer.getAnswerIndex() == correctIndex) {
+                        score++;
+                    }
+                }
+            }
+            QuizAttempt attempt = new QuizAttempt();
+            attempt.setUserId(username);
+            attempt.setQuizId(quiz.getId());
+            attempt.setQuizTitle(quiz.getTitle());
+            attempt.setSessionId(session.getId());
+            attempt.setScore(score);
+            attempt.setTotalQuestions(quiz.getQuestionList().size());
+            attempt.setAttemptedAt(LocalDateTime.now());
+            attempt.setAnswers(userAnswersList);
+            quizAttemptRepo.save(attempt);
+            System.out.println("SUCCESS: Saved QuizAttempt for user: " + username);
+        }
+        messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));
     }
 
-    public List<QuestionAnalytics> getAnalysis(String joinCode) {
+    public List<QuestionAnalytics> getAnalysis(String joinCode,String currentUsername) {
 
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
 
 
         Session session = sessionRepository.findByJoinCode(joinCode)

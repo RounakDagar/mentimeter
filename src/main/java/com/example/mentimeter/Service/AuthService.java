@@ -5,6 +5,8 @@ import com.example.mentimeter.Model.AuthProvider;
 import com.example.mentimeter.Model.User;
 import com.example.mentimeter.Repository.UserRepo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -48,18 +50,15 @@ public class AuthService {
         return false;
     }
 
-    public String verifyUser(User user){
-        User newUser = userRepo.findByUsername(user.getUsername()).orElse(null);
+    public String verifyUser(User user) {
+        User foundUser = userRepo.findByUsername(user.getUsername())
+                .orElseThrow(() -> new UsernameNotFoundException("No user with this username."));
 
-        if(newUser==null){
-            return "No user with this username.";
-        }
-
-
-        if(passwordEncoder.matches(user.getPassword(), newUser.getPassword())){
+        if (passwordEncoder.matches(user.getPassword(), foundUser.getPassword())) {
             return jwtService.generateToken(user.getUsername());
-        }else{
-            return "Wrong Password";
+        } else {
+
+            throw new BadCredentialsException("Wrong Password");
         }
     }
 }

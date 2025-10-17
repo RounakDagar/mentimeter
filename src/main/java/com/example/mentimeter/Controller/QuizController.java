@@ -1,12 +1,14 @@
 package com.example.mentimeter.Controller;
 
 import com.example.mentimeter.Model.Quiz;
+import com.example.mentimeter.Model.QuizAttempt;
 import com.example.mentimeter.Service.QuizService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -33,6 +35,12 @@ public class QuizController {
 
         return quizOptional.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+
+    @GetMapping("/{username}/AttemptedQuiz")
+    public ResponseEntity<List<QuizAttempt>> getAttemptedQuiz(@PathVariable String username){
+        return quizService.getAttemptedQuiz(username);
     }
 
     /**

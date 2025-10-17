@@ -74,7 +74,7 @@ public class QuizSocketController {
     @MessageMapping("/session/{joinCode}/next")
     public void handleNext(@DestinationVariable String joinCode) {
 
-        Session session = sessionService.advanceToNextQuestion(joinCode);
+        sessionService.advanceToNextQuestion(joinCode);
         System.out.println("Host requested next question for session " + joinCode);
         String destination = "/topic/session/" + joinCode + "/question";
         messagingTemplate.convertAndSend(destination, sessionService.getCurrentQuestionForSession(joinCode));
