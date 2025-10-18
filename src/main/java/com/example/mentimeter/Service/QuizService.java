@@ -44,6 +44,10 @@ public class QuizService {
     public List<Quiz> finddQuizBYUsername(String username) {
         return quizRepo.findByUsername(username);
     }
+
+    public void deleteQuiz(String quizId) {
+        quizRepo.deleteById(quizId);
+    }
 //    Quiz generateQuizFromAI_API()
 
 }

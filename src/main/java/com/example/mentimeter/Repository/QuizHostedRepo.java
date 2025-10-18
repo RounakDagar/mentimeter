@@ -8,4 +8,6 @@ import java.util.List;
 public interface QuizHostedRepo extends MongoRepository<QuizHost,String> {
 
     List<QuizHost> findByUserIdOrderByHostedAtDesc(String username);
+
+    QuizHost findByJoinCode(String joinCode);
 }

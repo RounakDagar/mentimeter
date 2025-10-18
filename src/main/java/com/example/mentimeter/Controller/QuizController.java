@@ -54,6 +54,12 @@ public class QuizController {
         return quizService.getHostedQuiz(username);
     }
 
+
+    @DeleteMapping("/{quizId}/deleteQuiz")
+    public void deleteQuizByQuizId(@PathVariable String quizId){
+         quizService.deleteQuiz(quizId);
+    }
+
     /**
      * [Phase 4] Endpoint to generate a quiz from an AI prompt.
      * (Placeholder for future implementation)

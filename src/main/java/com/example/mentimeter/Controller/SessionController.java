@@ -71,6 +71,12 @@ public class SessionController {
         return ResponseEntity.ok(Map.of("message", "Session " + joinCode + " has been ended."));
     }
 
+    @DeleteMapping("/{joinCode}/deleteSession")
+    public void deleteSession(@PathVariable String joinCode){
+
+       sessionService.deleteSession(joinCode);
+    }
+
 
 
 }

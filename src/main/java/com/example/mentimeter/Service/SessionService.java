@@ -309,5 +309,16 @@ public class SessionService {
         return questionAnalyticsList;
     }
 
+    public void deleteSession(String joinCode) {
+        Session session = sessionRepository.findByJoinCode(joinCode).orElse(null);
+
+        if(session==null){
+            throw new RuntimeException("No Session with joinCode " + joinCode + " to delete");
+        }
+        QuizHost quizHost = quizHostedRepo.findByJoinCode(joinCode);
+        quizHostedRepo.delete(quizHost);
+        sessionRepository.delete(session);
+
+    }
 }
 
