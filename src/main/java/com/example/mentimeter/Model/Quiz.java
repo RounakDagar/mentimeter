@@ -12,6 +12,7 @@ import java.util.List;
 public class Quiz {
     private String id;
     private String title;
+    private String username;
     private List<Question> questionList;
 
 }

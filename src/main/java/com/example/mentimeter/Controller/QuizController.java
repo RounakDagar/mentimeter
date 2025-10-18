@@ -29,6 +29,11 @@ public class QuizController {
         return new ResponseEntity<>(createdQuiz, HttpStatus.CREATED);
     }
 
+    @GetMapping("/user/{username}")
+    public ResponseEntity<List<Quiz>> getQuizFromUsername(@PathVariable String username){
+        return ResponseEntity.ok(quizService.finddQuizBYUsername(username));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Quiz> getQuizById(@PathVariable String id) {
         Optional<Quiz> quizOptional = quizService.getQuizById(id);

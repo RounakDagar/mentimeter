@@ -32,6 +32,11 @@ public class SessionController {
         return ResponseEntity.ok(sessionResponse);
     }
 
+    @GetMapping("/{joinCode}/validate")
+    public ResponseEntity<Session> isValidSession(@PathVariable String joinCode){
+        return ResponseEntity.ok(sessionService.findSessionByJoinCode(joinCode));
+    }
+
     /**
      * [Phase 4] Fetches the final, aggregated results for a completed quiz session.
      * (Placeholder for future implementation)

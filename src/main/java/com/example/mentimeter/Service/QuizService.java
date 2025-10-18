@@ -40,6 +40,10 @@ public class QuizService {
     public ResponseEntity<List<QuizHost>> getHostedQuiz(String username) {
         return ResponseEntity.ok(quizHostedRepo.findByUserIdOrderByHostedAtDesc(username));
     }
+
+    public List<Quiz> finddQuizBYUsername(String username) {
+        return quizRepo.findByUsername(username);
+    }
 //    Quiz generateQuizFromAI_API()
 
 }
