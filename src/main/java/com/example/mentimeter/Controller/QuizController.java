@@ -2,6 +2,7 @@ package com.example.mentimeter.Controller;
 
 import com.example.mentimeter.Model.Quiz;
 import com.example.mentimeter.Model.QuizAttempt;
+import com.example.mentimeter.Model.QuizHost;
 import com.example.mentimeter.Service.QuizService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -43,6 +44,10 @@ public class QuizController {
         return quizService.getAttemptedQuiz(username);
     }
 
+    @GetMapping("/{username}/HostedQuiz")
+    public ResponseEntity<List<QuizHost>> getHostedQuiz(@PathVariable String username){
+        return quizService.getHostedQuiz(username);
+    }
 
     /**
      * [Phase 4] Endpoint to generate a quiz from an AI prompt.

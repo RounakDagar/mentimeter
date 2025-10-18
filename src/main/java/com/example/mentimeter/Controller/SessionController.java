@@ -65,4 +65,7 @@ public class SessionController {
         sessionService.endSession(joinCode);
         return ResponseEntity.ok(Map.of("message", "Session " + joinCode + " has been ended."));
     }
+
+
+
 }

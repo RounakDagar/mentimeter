@@ -4,6 +4,7 @@ import com.example.mentimeter.DTO.QuestionDTO;
 import com.example.mentimeter.DTO.SessionResponse;
 import com.example.mentimeter.Model.*;
 import com.example.mentimeter.Repository.QuizAttemptRepo;
+import com.example.mentimeter.Repository.QuizHostedRepo;
 import com.example.mentimeter.Repository.QuizRepo;
 import com.example.mentimeter.Repository.SessionRepo;
 import com.example.mentimeter.Util.JoinCodeGenerator;
@@ -13,6 +14,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -27,6 +29,7 @@ public class SessionService {
     private final QuizRepo quizRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final QuizAttemptRepo quizAttemptRepo;
+    private final QuizHostedRepo quizHostedRepo;
 
     public SessionResponse createSession(String quizId) {
         if (!quizRepository.existsById(quizId)) {
@@ -190,6 +193,7 @@ public class SessionService {
         allUsersToProcess.add(session.getHostUsername());
 
         for (String username : allUsersToProcess) {
+
             Map<Integer, Integer> userAnswersMap = session.getResponse().getOrDefault(username, Collections.emptyMap());
             List<ParticipantAnswer> userAnswersList = userAnswersMap.entrySet().stream()
                     .map(entry -> new ParticipantAnswer(entry.getKey(), entry.getValue(), username))
@@ -204,6 +208,28 @@ public class SessionService {
                     }
                 }
             }
+
+
+            if(username.equals(session.getHostUsername())){
+                QuizHost quizHost = new QuizHost();
+
+                quizHost.setHostedAt(LocalDateTime.now());
+                quizHost.setQuizTitle(quiz.getTitle());
+                quizHost.setJoinCode(joinCode);
+                quizHost.setUserId(username);
+                quizHost.setTotalQuestions(quiz.getQuestionList().size());
+                quizHost.setQuizId(quiz.getId());
+                quizHost.setAnswers(userAnswersList);
+
+
+                quizHostedRepo.save(quizHost);
+                System.out.println(STR."SUCCESS: Saved QuizHost for user: \{username}");
+
+                messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));
+                return;
+            }
+
+
             QuizAttempt attempt = new QuizAttempt();
             attempt.setUserId(username);
             attempt.setQuizId(quiz.getId());
@@ -213,7 +239,8 @@ public class SessionService {
             attempt.setTotalQuestions(quiz.getQuestionList().size());
             attempt.setAttemptedAt(LocalDateTime.now());
             attempt.setAnswers(userAnswersList);
-            quizAttemptRepo.save(attempt);
+            quizAttemptRepo.save(attempt);// ...fetch hosted quizzes logic here if you have it...
+      // setQuizzes(...)
             System.out.println("SUCCESS: Saved QuizAttempt for user: " + username);
         }
         messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));

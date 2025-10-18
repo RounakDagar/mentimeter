@@ -2,7 +2,9 @@ package com.example.mentimeter.Service;
 
 import com.example.mentimeter.Model.Quiz;
 import com.example.mentimeter.Model.QuizAttempt;
+import com.example.mentimeter.Model.QuizHost;
 import com.example.mentimeter.Repository.QuizAttemptRepo;
+import com.example.mentimeter.Repository.QuizHostedRepo;
 import com.example.mentimeter.Repository.QuizRepo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,7 @@ public class QuizService {
 
     private final QuizRepo quizRepo;
     private final QuizAttemptRepo quizAttemptRepo;
+    private final QuizHostedRepo quizHostedRepo;
 
 
 
@@ -34,6 +37,9 @@ public class QuizService {
         return ResponseEntity.ok(quizAttemptRepo.findByUserIdOrderByAttemptedAtDesc(username));
     }
 
+    public ResponseEntity<List<QuizHost>> getHostedQuiz(String username) {
+        return ResponseEntity.ok(quizHostedRepo.findByUserIdOrderByHostedAtDesc(username));
+    }
 //    Quiz generateQuizFromAI_API()
 
 }
