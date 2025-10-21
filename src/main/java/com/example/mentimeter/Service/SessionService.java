@@ -56,8 +56,9 @@ public class SessionService {
 
     public Session addParticipant(String joinCode, String participantName) {
         Session session = findSessionByJoinCode(joinCode);
-        if (session.getStatus() != SessionStatus.WAITING) {
-            throw new IllegalStateException("Cannot join a session that is not in the WAITING state.");
+        if (session.getStatus() != SessionStatus.WAITING && session.getStatus() != SessionStatus.ACTIVE) {
+            // This now correctly blocks joining only if ENDED or PAUSED (if you add PAUSED)
+            throw new IllegalStateException("Cannot join a session that is not in the WAITING or ACTIVE state. " + session.getStatus() + " "+ participantName);
         }
         session.getParticipants().add(participantName);
         return sessionRepository.save(session);
@@ -225,8 +226,8 @@ public class SessionService {
                 quizHostedRepo.save(quizHost);
                 System.out.println(STR."SUCCESS: Saved QuizHost for user: \{username}");
 
-                messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));
-                return;
+//                messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));
+                continue;
             }
 
 
@@ -240,11 +241,12 @@ public class SessionService {
             attempt.setAttemptedAt(LocalDateTime.now());
             attempt.setAnswers(userAnswersList);
             quizAttemptRepo.save(attempt);// ...fetch hosted quizzes logic here if you have it...
-      // setQuizzes(...)
+            // setQuizzes(...)
             System.out.println("SUCCESS: Saved QuizAttempt for user: " + username);
         }
-        messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));
+        messagingTemplate.convertAndSend("/topic/session/" + joinCode + "/ended", Map.of("eventType", "QUIZ_ENDED"));
     }
+
 
     public List<QuestionAnalytics> getAnalysis(String joinCode,String currentUsername) {
 

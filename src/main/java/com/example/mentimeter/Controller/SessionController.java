@@ -43,8 +43,6 @@ public class SessionController {
      */
     @GetMapping("/{joinCode}/{username}/analytics")
     public ResponseEntity<List<QuestionAnalytics>> getSessionAnalytics(@PathVariable String joinCode,@PathVariable String username) {
-        // TODO: Implement logic to fetch and calculate final results.
-
 
         return ResponseEntity.ok(sessionService.getAnalysis(joinCode,username));
     }

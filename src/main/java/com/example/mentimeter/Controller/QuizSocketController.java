@@ -1,6 +1,8 @@
 package com.example.mentimeter.Controller;
 
+import com.example.mentimeter.DTO.QuestionDTO;
 import com.example.mentimeter.Model.Session;
+import com.example.mentimeter.Model.SessionStatus;
 import com.example.mentimeter.Service.SessionService;
 import lombok.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Optional;
 
 @Controller
 
@@ -50,6 +53,18 @@ public class QuizSocketController {
         String destination = "/topic/session/" + joinCode + "/participants";
 
         messagingTemplate.convertAndSend(destination,session.getParticipants());
+
+        if (session.getStatus() == SessionStatus.ACTIVE) {
+            Optional<QuestionDTO> currentQuestion = sessionService.getCurrentQuestionForSession(joinCode);
+            currentQuestion.ifPresent(question -> {
+                System.out.println("Sending current question to late-joining participant: " + participantName);
+                messagingTemplate.convertAndSendToUser(
+                        participantName,
+                        "/queue/question", // Send to a private queue
+                        question
+                );
+            });
+        }
     }
 
     /**
@@ -93,5 +108,39 @@ public class QuizSocketController {
         String hostDestination = "/topic/session/" + joinCode + "/host";
         messagingTemplate.convertAndSend(hostDestination, Map.of("eventType", "USER_ANSWERED", "name", participantIdentifier));
 
+    }
+
+    @MessageMapping("/session/{joinCode}/end")
+    public void handleEndSession(@DestinationVariable String joinCode, Principal principal) {
+        String hostUsername = principal.getName();
+
+        // === ADD THIS TRY-CATCH BLOCK ===
+        try {
+            System.out.println("Attempting to end session: " + joinCode + " for host: " + hostUsername);
+
+            // Call your existing service logic
+            sessionService.endSession(joinCode);
+
+            System.out.println("Session service finished. Sending confirmation to host.");
+
+            // Send the private confirmation message back ONLY to the HOST
+            messagingTemplate.convertAndSendToUser(
+                    hostUsername,
+                    "/queue/session-ended-host", // This matches the new subscription in HostPage
+                    Map.of("status", "ENDED", "joinCode", joinCode)
+            );
+
+        } catch (Exception e) {
+            // THIS WILL PRINT THE ERROR TO YOUR CONSOLE
+            System.err.println("!!! FAILED TO END SESSION: " + joinCode + " !!!");
+            e.printStackTrace(); // This is the most important line
+
+            // (Optional) Send an error message back to the host's client
+            messagingTemplate.convertAndSendToUser(
+                    hostUsername,
+                    "/queue/error", // A generic error queue
+                    Map.of("error", "Failed to end session: " + e.getMessage())
+            );
+        }
     }
 }
