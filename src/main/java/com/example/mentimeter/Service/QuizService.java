@@ -48,6 +48,12 @@ public class QuizService {
     public void deleteQuiz(String quizId) {
         quizRepo.deleteById(quizId);
     }
+
+    public ResponseEntity<QuizAttempt> getQuizAttempt(String joinCode, String username) {
+        QuizAttempt quizAttempt = quizAttemptRepo.findBySessionIdAndUserId(joinCode,username);
+
+        return  ResponseEntity.ok(quizAttempt);
+    }
 //    Quiz generateQuizFromAI_API()
 
 }

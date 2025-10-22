@@ -110,6 +110,7 @@ public class SessionService {
 
         // Map the Question entity to a QuestionDTO
         QuestionDTO questionDTO = new QuestionDTO(
+                currentIndex,
                 currentQuestion.getText(),
                 currentQuestion.getOptions()
         );
@@ -138,7 +139,8 @@ public class SessionService {
         String hostDestination = "/topic/session/" + joinCode + "/host";
         messagingTemplate.convertAndSend(hostDestination, Map.of(
                 "eventType", "USER_ANSWERED",
-                "name", username
+                "name", username,
+                "optionIndex", answerIndex
         ));
     }
 

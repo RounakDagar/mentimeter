@@ -49,6 +49,11 @@ public class QuizController {
         return quizService.getAttemptedQuiz(username);
     }
 
+    @GetMapping("/{username}/AttemptedQuiz/{joinCode}/quizAttempt")
+    public ResponseEntity<QuizAttempt> getQuizAttempt(@PathVariable String username,@PathVariable String joinCode){
+        return quizService.getQuizAttempt(joinCode,username);
+    }
+
     @GetMapping("/{username}/HostedQuiz")
     public ResponseEntity<List<QuizHost>> getHostedQuiz(@PathVariable String username){
         return quizService.getHostedQuiz(username);
