@@ -1,5 +1,6 @@
 package com.example.mentimeter.Controller;
 
+import com.example.mentimeter.DTO.AnalyticsResponseDTO;
 import com.example.mentimeter.Model.QuestionAnalytics;
 import com.example.mentimeter.Model.Session;
 import com.example.mentimeter.Model.SessionStatus;
@@ -42,8 +43,8 @@ public class SessionController {
      * (Placeholder for future implementation)
      */
     @GetMapping("/{joinCode}/{username}/analytics")
-    public ResponseEntity<List<QuestionAnalytics>> getSessionAnalytics(@PathVariable String joinCode,@PathVariable String username) {
-
+    public ResponseEntity<AnalyticsResponseDTO> getSessionAnalytics(@PathVariable String joinCode, @PathVariable String username) {
+        // No change needed here, service method now returns the correct DTO
         return ResponseEntity.ok(sessionService.getAnalysis(joinCode,username));
     }
 

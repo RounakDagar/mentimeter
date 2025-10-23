@@ -74,4 +74,9 @@ public class QuizController {
 //         TODO: Implement logic to call an AI service and create a quiz
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
     }
+
+    @PutMapping("/{quizId}/edit")
+    public ResponseEntity<Quiz> editQuiz(@PathVariable String quizId,@RequestBody Quiz quiz){
+        return quizService.editQuiz(quizId,quiz);
+    }
 }

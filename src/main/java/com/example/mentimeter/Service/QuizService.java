@@ -1,5 +1,6 @@
 package com.example.mentimeter.Service;
 
+import com.example.mentimeter.Model.Question;
 import com.example.mentimeter.Model.Quiz;
 import com.example.mentimeter.Model.QuizAttempt;
 import com.example.mentimeter.Model.QuizHost;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -53,6 +55,28 @@ public class QuizService {
         QuizAttempt quizAttempt = quizAttemptRepo.findBySessionIdAndUserId(joinCode,username);
 
         return  ResponseEntity.ok(quizAttempt);
+    }
+
+    public ResponseEntity<Quiz> editQuiz(String quizId,Quiz quiz) {
+        Quiz newQuiz = quizRepo.findById(quizId).orElse(null);
+
+        if(quiz==null){
+            throw new RuntimeException("No quiz with QuizId " + quizId + " found to edit");
+
+        }
+
+        newQuiz.setTitle(quiz.getTitle());
+        List<Question> questionList = new ArrayList<>();
+
+        for(Question ques : quiz.getQuestionList()){
+            questionList.add(ques);
+        }
+        newQuiz.setQuestionList(questionList);
+        quizRepo.save(newQuiz);
+
+        return ResponseEntity.ok(newQuiz);
+
+
     }
 //    Quiz generateQuizFromAI_API()
 

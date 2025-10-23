@@ -8,6 +8,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 
 @Data
@@ -23,4 +25,5 @@ public class Session {
     private int currentQuestionIndex;
     private Set<String> participants;
     private Map<String,Map<Integer,Integer>> response;
+    private Map<String,Integer> scores = new ConcurrentHashMap<>() ;
 }

@@ -54,17 +54,7 @@ public class QuizSocketController {
 
         messagingTemplate.convertAndSend(destination,session.getParticipants());
 
-        if (session.getStatus() == SessionStatus.ACTIVE) {
-            Optional<QuestionDTO> currentQuestion = sessionService.getCurrentQuestionForSession(joinCode);
-            currentQuestion.ifPresent(question -> {
-                System.out.println("Sending current question to late-joining participant: " + participantName);
-                messagingTemplate.convertAndSendToUser(
-                        participantName,
-                        "/queue/question", // Send to a private queue
-                        question
-                );
-            });
-        }
+
     }
 
     /**
@@ -104,9 +94,9 @@ public class QuizSocketController {
 
 //        ("Participant '{}' in session {} answered with option {}", participantIdentifier, joinCode, answer.getOptionIndex());
         sessionService.recordAnswer(joinCode, participantIdentifier, answer.getOptionIndex());
-
-        String hostDestination = "/topic/session/" + joinCode + "/host";
-        messagingTemplate.convertAndSend(hostDestination, Map.of("eventType", "USER_ANSWERED", "name", participantIdentifier));
+//
+//        String hostDestination = "/topic/session/" + joinCode + "/host";
+//        messagingTemplate.convertAndSend(hostDestination, Map.of("eventType", "USER_ANSWERED", "name", participantIdentifier));
 
     }
 

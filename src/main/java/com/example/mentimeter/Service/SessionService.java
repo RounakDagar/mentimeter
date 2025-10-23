@@ -1,5 +1,7 @@
 package com.example.mentimeter.Service;
 
+import com.example.mentimeter.DTO.AnalyticsResponseDTO;
+import com.example.mentimeter.DTO.LeaderboardEntryDTO;
 import com.example.mentimeter.DTO.QuestionDTO;
 import com.example.mentimeter.DTO.SessionResponse;
 import com.example.mentimeter.Model.*;
@@ -9,6 +11,7 @@ import com.example.mentimeter.Repository.QuizRepo;
 import com.example.mentimeter.Repository.SessionRepo;
 import com.example.mentimeter.Util.JoinCodeGenerator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.aggregation.ArrayOperators;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
@@ -23,6 +26,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SessionService {
 
     private final SessionRepo sessionRepository;
@@ -57,18 +61,31 @@ public class SessionService {
     public Session addParticipant(String joinCode, String participantName) {
         Session session = findSessionByJoinCode(joinCode);
         if (session.getStatus() != SessionStatus.WAITING && session.getStatus() != SessionStatus.ACTIVE) {
-            // This now correctly blocks joining only if ENDED or PAUSED (if you add PAUSED)
             throw new IllegalStateException("Cannot join a session that is not in the WAITING or ACTIVE state. " + session.getStatus() + " "+ participantName);
         }
-        session.getParticipants().add(participantName);
+        if (session.getParticipants().add(participantName)) { // Only add score if participant was newly added
+            session.getScores().putIfAbsent(participantName, 0); // Initialize score to 0
+            System.out.println("Participant '{}'" + participantName + "joined session {} and score initialized." + joinCode);
+        }
         return sessionRepository.save(session);
     }
 
     public Session startSession(String joinCode) {
         Session session = findSessionByJoinCode(joinCode);
+        // Ensure all current participants have a score entry before starting
+        session.getParticipants().forEach(pName -> session.getScores().putIfAbsent(pName, 0));
+
         session.setStatus(SessionStatus.ACTIVE);
         session.setCurrentQuestionIndex(0);
-        return sessionRepository.save(session);
+        Session savedSession = sessionRepository.save(session);
+
+        // Broadcast initial leaderboard
+        broadcastLeaderboardUpdate(joinCode); // Broadcast when starting
+
+
+        log.info("Sent first question for session {}.", joinCode);
+
+        return savedSession;
     }
 
     public void advanceToNextQuestion(String joinCode) {
@@ -78,6 +95,9 @@ public class SessionService {
         }
         Quiz quiz = quizRepository.findById(session.getQuizId())
                 .orElseThrow(() -> new IllegalStateException("Associated quiz not found for session."));
+
+        broadcastLeaderboardUpdate(joinCode);
+
         int nextIndex = session.getCurrentQuestionIndex() + 1;
 
         if (nextIndex >= quiz.getQuestionList().size()) {
@@ -134,6 +154,25 @@ public class SessionService {
                 .computeIfAbsent(username, k -> new HashMap<>())
                 .put(currentQuestionIndex, answerIndex);
 
+        Quiz quiz = quizRepository.findById(session.getQuizId())
+                .orElseThrow(() -> new IllegalStateException("Associated quiz not found for scoring."));
+
+        if (currentQuestionIndex >= 0 && currentQuestionIndex < quiz.getQuestionList().size()) {
+            Question currentQuestion = quiz.getQuestionList().get(currentQuestionIndex);
+            if (answerIndex == currentQuestion.getCorrectAnswerIndex()) {
+                // Atomically update the score
+                session.getScores().compute(username, (user, score) -> (score == null ? 0 : score) + 1);
+                log.info("User '{}' answered question {} correctly. New score: {}", username, currentQuestionIndex, session.getScores().get(username));
+                // Consider broadcasting leaderboard update here if you want immediate updates,
+                // otherwise wait until question advance.
+                // broadcastLeaderboardUpdate(joinCode); // Optional: Immediate update
+            } else {
+                log.info("User '{}' answered question {} incorrectly.", username, currentQuestionIndex);
+                // Ensure score exists even if answer is wrong (might have joined late)
+                session.getScores().putIfAbsent(username, 0);
+            }
+        }
+
         sessionRepository.save(session);
 
         String hostDestination = "/topic/session/" + joinCode + "/host";
@@ -186,11 +225,15 @@ public class SessionService {
         if (session.getStatus() == SessionStatus.ENDED) {
             return;
         }
+
+        broadcastLeaderboardUpdate(joinCode);
         session.setStatus(SessionStatus.ENDED);
         sessionRepository.save(session);
 
         Quiz quiz = quizRepository.findById(session.getQuizId())
                 .orElseThrow(() -> new IllegalStateException("Quiz not found for session " + joinCode));
+
+
 
         Set<String> allUsersToProcess = new HashSet<>(session.getParticipants());
         allUsersToProcess.add(session.getHostUsername());
@@ -250,16 +293,13 @@ public class SessionService {
     }
 
 
-    public List<QuestionAnalytics> getAnalysis(String joinCode,String currentUsername) {
-
-
-
+    public AnalyticsResponseDTO getAnalysis(String joinCode,String currentUsername) {
 
         Session session = sessionRepository.findByJoinCode(joinCode)
-                .orElseThrow(() -> new RuntimeException("Session not there to analyse"));
+                .orElseThrow(() -> new RuntimeException("Session not there to analyse: " + joinCode));
 
         Quiz currentQuiz = quizRepository.findById(session.getQuizId())
-                .orElseThrow(() -> new RuntimeException("No quiz for this session"));
+                .orElseThrow(() -> new RuntimeException("No quiz found for session: " + joinCode));
 
 
         boolean isHost = currentUsername.equals(session.getHostUsername());
@@ -272,7 +312,7 @@ public class SessionService {
             Question currentQuestion = currentQuiz.getQuestionList().get(i);
             int currentQuestionIndex = i;
 
-
+            // --- Calculate optionFrequency and usernamesByOption ---
             Map<Integer, Integer> optionFrequency = new HashMap<>();
             Map<Integer, List<String>> usernamesByOption = new HashMap<>();
 
@@ -280,15 +320,32 @@ public class SessionService {
                 String username = participantEntry.getKey();
                 Map<Integer, Integer> answers = participantEntry.getValue();
 
-                if (answers.containsKey(currentQuestionIndex)) {
-                    int chosenOptionIndex = answers.get(currentQuestionIndex);
-                    optionFrequency.merge(chosenOptionIndex, 1, Integer::sum);
+                // Ensure participant is in the session's participant list before processing their answers
+                // (handles edge cases where someone might have left but responses remain)
+                // Although, currently, responses are likely cleared or not added if not participant.
+                // This adds an extra layer of safety.
+                if (session.getParticipants().contains(username) || username.equals(session.getHostUsername())) {
+                    if (answers.containsKey(currentQuestionIndex)) {
+                        int chosenOptionIndex = answers.get(currentQuestionIndex);
 
-                    if (isHost) {
-                        usernamesByOption.computeIfAbsent(chosenOptionIndex, k -> new ArrayList<>()).add(username);
+                        // Validate chosenOptionIndex against available options
+                        if (chosenOptionIndex >= 0 && chosenOptionIndex < currentQuestion.getOptions().size()) {
+                            optionFrequency.merge(chosenOptionIndex, 1, Integer::sum);
+                            if (isHost) {
+                                usernamesByOption.computeIfAbsent(chosenOptionIndex, k -> new ArrayList<>()).add(username);
+                            }
+                        } else {
+                            log.warn("User {} provided an invalid option index {} for question {} in session {}. Skipping.", username, chosenOptionIndex, currentQuestionIndex, joinCode);
+                        }
+                    } else {
+                        // User did not answer this question
+                        log.debug("User {} did not answer question {} in session {}.", username, currentQuestionIndex, joinCode);
                     }
+                } else {
+                    log.warn("User {} found in responses but not in current participant list for session {}. Skipping.", username, joinCode);
                 }
             }
+            // --- End calculation ---
 
 
             int userAnswerIndex = -1; // Default for host or if participant didn't answer
@@ -296,6 +353,12 @@ public class SessionService {
             // If the user is a participant, find their specific answer for this question
             if (!isHost && session.getResponse().containsKey(currentUsername)) {
                 userAnswerIndex = session.getResponse().get(currentUsername).getOrDefault(currentQuestionIndex, -1);
+            }
+
+            // Validate userAnswerIndex before adding
+            if (userAnswerIndex >= currentQuestion.getOptions().size()) {
+                log.warn("User {}'s recorded answer index {} is out of bounds for question {}. Setting to -1.", currentUsername, userAnswerIndex, currentQuestionIndex);
+                userAnswerIndex = -1; // Set to invalid index if out of bounds
             }
 
             QuestionAnalytics questionAnalytics = new QuestionAnalytics(
@@ -310,7 +373,13 @@ public class SessionService {
             questionAnalyticsList.add(questionAnalytics);
         }
 
-        return questionAnalyticsList;
+        // --- Calculate Leaderboard ---
+        List<LeaderboardEntryDTO> leaderboard = getLeaderboard(joinCode);
+        // --------------------------
+
+        log.info("Successfully generated analytics for session {} requested by user {}", joinCode, currentUsername);
+        // --- Return the combined DTO ---
+        return new AnalyticsResponseDTO(questionAnalyticsList, leaderboard);
     }
 
     public void deleteSession(String joinCode) {
@@ -323,6 +392,50 @@ public class SessionService {
         quizHostedRepo.delete(quizHost);
         sessionRepository.delete(session);
 
+    }
+
+    private List<LeaderboardEntryDTO> getLeaderboard(String joinCode) {
+        Session session = findSessionByJoinCode(joinCode);
+
+        // 1. Create initial list sorted by score (highest first)
+        List<LeaderboardEntryDTO> sortedEntries = session.getScores().entrySet().stream()
+                .map(entry -> new LeaderboardEntryDTO(entry.getKey(), entry.getValue(), 0)) // Rank initially 0
+                .sorted(Comparator.comparingInt(LeaderboardEntryDTO::getScore).reversed())
+                .collect(Collectors.toList());
+
+        // 2. Assign ranks, handling ties
+        int currentRank = 0;
+        int playersAtCurrentRank = 0;
+        int lastScore = -1; // Use a score that won't naturally occur
+
+        List<LeaderboardEntryDTO> rankedList = new ArrayList<>();
+        for (int i = 0; i < sortedEntries.size(); i++) {
+            LeaderboardEntryDTO currentEntry = sortedEntries.get(i);
+
+            if (currentEntry.getScore() != lastScore) {
+                // New score tier, update rank based on how many players were before this tier
+                currentRank = i + 1; // Rank is 1-based index
+                playersAtCurrentRank = 1;
+                lastScore = currentEntry.getScore();
+            } else {
+                // Same score as previous player, they share the same rank
+                playersAtCurrentRank++;
+            }
+
+            currentEntry.setRank(currentRank); // Assign the calculated rank
+            rankedList.add(currentEntry);
+        }
+
+        return rankedList; // Return the list with calculated ranks
+    }
+    // ---------------------------------------------
+
+    // --- New Method: Broadcast Leaderboard Update ---
+    private void broadcastLeaderboardUpdate(String joinCode) {
+        List<LeaderboardEntryDTO> leaderboard = getLeaderboard(joinCode);
+        String destination = "/topic/session/" + joinCode + "/leaderboard";
+        messagingTemplate.convertAndSend(destination, leaderboard);
+        log.info("Broadcasted leaderboard update for session {}", joinCode);
     }
 }
 
