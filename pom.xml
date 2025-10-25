@@ -61,6 +61,11 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-vertexai</artifactId>
+            <version>0.7.0</version> </dependency>
+
         <!-- For handling JWTs (JSON Web Tokens) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
