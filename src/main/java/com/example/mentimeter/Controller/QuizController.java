@@ -7,6 +7,7 @@ import com.example.mentimeter.Service.QuizService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -78,5 +79,18 @@ public class QuizController {
     @PutMapping("/{quizId}/edit")
     public ResponseEntity<Quiz> editQuiz(@PathVariable String quizId,@RequestBody Quiz quiz){
         return quizService.editQuiz(quizId,quiz);
+    }
+
+    @DeleteMapping("/my-attempt/live/{sessionId}")
+    public ResponseEntity<Void> deleteMyLiveAttempt(
+            @PathVariable String sessionId,
+            Authentication auth
+    ) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String username = auth.getName();
+        quizService.deleteMyLiveAttempt(sessionId, username);
+        return ResponseEntity.ok().build();
     }
 }

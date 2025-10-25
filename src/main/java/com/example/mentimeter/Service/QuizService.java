@@ -7,6 +7,7 @@ import com.example.mentimeter.Model.QuizHost;
 import com.example.mentimeter.Repository.QuizAttemptRepo;
 import com.example.mentimeter.Repository.QuizHostedRepo;
 import com.example.mentimeter.Repository.QuizRepo;
+import com.example.mentimeter.Util.JoinCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -77,6 +78,46 @@ public class QuizService {
         return ResponseEntity.ok(newQuiz);
 
 
+    }
+
+    public String enableSharing(String quizId, String username) {
+        Quiz quiz = quizRepo.findById(quizId)
+                .orElseThrow(() -> new RuntimeException("Quiz not found"));
+        if (!quiz.getUsername().equals(username)) {
+            throw new RuntimeException("User not authorized to share this quiz");
+        }
+
+        if (quiz.getShareCode() == null) {
+            // Generate a unique 12-char code
+            String shareCode = JoinCodeGenerator.generate() + JoinCodeGenerator.generate();
+            // TODO: Add a check to ensure this code is unique in quizRepo
+            quiz.setShareCode(shareCode);
+        }
+        quiz.setShared(true);
+        quizRepo.save(quiz);
+        return quiz.getShareCode();
+    }
+
+    public void disableSharing(String quizId, String username) {
+        Quiz quiz = quizRepo.findById(quizId)
+                .orElseThrow(() -> new RuntimeException("Quiz not found"));
+        if (!quiz.getUsername().equals(username)) {
+            throw new RuntimeException("User not authorized");
+        }
+        quiz.setShared(false);
+        quizRepo.save(quiz);
+    }
+
+    public void deleteMyLiveAttempt(String sessionId, String username) {
+
+        QuizAttempt attempt = quizAttemptRepo.findBySessionIdAndUserId(sessionId, username);
+
+
+        if (attempt == null) {
+            throw new RuntimeException("Attempt not found or does not belong to the user.");
+        }
+
+        quizAttemptRepo.delete(attempt);
     }
 //    Quiz generateQuizFromAI_API()
 
