@@ -269,7 +269,7 @@ public class SessionService {
 
 
                 quizHostedRepo.save(quizHost);
-                System.out.println(STR."SUCCESS: Saved QuizHost for user: \{username}");
+                System.out.println("SUCCESS: Saved QuizHost for user:" +username);
 
 //                messagingTemplate.convertAndSend("/topic/session/" + joinCode, Map.of("eventType", "QUIZ_ENDED"));
                 continue;
